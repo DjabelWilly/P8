@@ -35,18 +35,22 @@ public class RewardsService : IRewardsService
     public void CalculateRewards(User user)
     {
         count++;
-        List<VisitedLocation> userLocations = user.VisitedLocations;
+        List<VisitedLocation> userLocations = user.VisitedLocations.ToList();
         List<Attraction> attractions = _gpsUtil.GetAttractions();
+
+        var existingRewardNames = user.UserRewards.Select(r => r.Attraction.AttractionName).ToHashSet();
 
         foreach (var visitedLocation in userLocations)
         {
             foreach (var attraction in attractions)
             {
-                if (!user.UserRewards.Any(r => r.Attraction.AttractionName == attraction.AttractionName))
+                if (!existingRewardNames.Contains(attraction.AttractionName))
                 {
                     if (NearAttraction(visitedLocation, attraction))
                     {
-                        user.AddUserReward(new UserReward(visitedLocation, attraction, GetRewardPoints(attraction, user)));
+                        var reward = new UserReward(visitedLocation, attraction, GetRewardPoints(attraction, user));
+                        user.AddUserReward(reward);
+                        existingRewardNames.Add(attraction.AttractionName);
                     }
                 }
             }
