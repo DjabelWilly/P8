@@ -37,8 +37,8 @@ jobs:
       - name: Test
         run: dotnet test TourGuideTest/TourGuideTest.csproj --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
 
-      - name: Publish API project
-        run: dotnet publish Api/Api.csproj -c Release -o publish/Api --no-build
+      - name: Publish
+        run: dotnet publish Api/TourGuide.csproj -c Release -o publish/TourGuide --no-build
 
       - name: Zip artefact
         run: zip -r TourGuide.zip publish
