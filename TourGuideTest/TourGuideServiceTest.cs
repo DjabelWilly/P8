@@ -14,6 +14,7 @@ namespace TourGuideTest
             _fixture = fixture;
         }
 
+        [Fact]
         public void Dispose()
         {
             _fixture.Cleanup();

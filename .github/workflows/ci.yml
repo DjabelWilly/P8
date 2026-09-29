@@ -11,6 +11,9 @@ on:
       - dev
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build:
     name: Build, test and publish
@@ -25,27 +28,21 @@ jobs:
         with:
           dotnet-version: '7.0.x'
 
-      # 1. Restauration des dépendances
       - name: Restore
         run: dotnet restore TourGuide.sln
 
-      # 2. Compilation
       - name: Build
         run: dotnet build TourGuide.sln --configuration Release --no-restore
 
-      # 3. Tests
       - name: Test
         run: dotnet test TourGuideTest/TourGuideTest.csproj --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
 
-      # 4. Création du livrable
-      - name: Publish
-        run: dotnet publish TourGuide.sln -c Release -o publish --no-build
+      - name: Publish API project
+        run: dotnet publish Api/Api.csproj -c Release -o publish/Api --no-build
 
-      # 5. Création du ZIP
       - name: Zip artefact
         run: zip -r TourGuide.zip publish
 
-      # 6. Stockage de l'artefact
       - name: Upload artefact
         uses: actions/upload-artifact@v4
         with:
