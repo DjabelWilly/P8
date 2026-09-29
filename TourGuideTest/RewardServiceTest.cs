@@ -1,11 +1,5 @@
 ﻿using GpsUtil.Location;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TourGuide.Users;
-using TourGuide.Utilities;
 
 namespace TourGuideTest;
 
@@ -19,37 +13,63 @@ public class RewardServiceTest : IClassFixture<DependencyFixture>
     }
 
     [Fact]
-    public void UserGetRewards()
+    public async Task UserGetRewards()
     {
+        // Arrange
         _fixture.Initialize(0);
-        var user = new User(Guid.NewGuid(), "jon", "000", "jon@tourGuide.com");
-        var attraction = _fixture.GpsUtil.GetAttractions().First();
-        user.AddToVisitedLocations(new VisitedLocation(user.UserId, attraction, DateTime.Now));
-        _fixture.TourGuideService.TrackUserLocation(user);
-        var userRewards = user.UserRewards;
+
+        User user = new(Guid.NewGuid(), "jon", "000", "jon@tourGuide.com");
+        
+        List<Attraction> attractions = await _fixture.GpsUtil.GetAttractionsAsync();
+        
+        user.AddToVisitedLocations(new VisitedLocation(user.UserId, attractions.First(), DateTime.Now));
+
+        // Act
+        await _fixture.TourGuideService.TrackUserLocationAsync(user);
+
+        List<UserReward> userRewards = user.UserRewards;
+
+        // Assert
+        Assert.Single(userRewards);
+
         _fixture.TourGuideService.Tracker.StopTracking();
-        Assert.True(userRewards.Count == 1);
     }
 
     [Fact]
-    public void IsWithinAttractionProximity()
+    public async Task IsWithinAttractionProximity()
     {
-        var attraction = _fixture.GpsUtil.GetAttractions().First();
-        Assert.True(_fixture.RewardsService.IsWithinAttractionProximity(attraction, attraction));
+        // Arrange
+        List<Attraction> attractions = await _fixture.GpsUtil.GetAttractionsAsync();
+
+        Attraction attraction = attractions.First();
+
+        // Act
+        bool result = _fixture.RewardsService.IsWithinAttractionProximity(attraction, attraction);
+
+        // Assert
+        Assert.True(result);
     }
 
-    [Fact(Skip = ("Needs fixed - can throw InvalidOperationException"))]
-    public void NearAllAttractions()
+    [Fact]
+    public async Task NearAllAttractions()
     {
+        // Arrange
         _fixture.Initialize(1);
+
         _fixture.RewardsService.SetProximityBuffer(int.MaxValue);
 
-        var user = _fixture.TourGuideService.GetAllUsers().First();
-        _fixture.RewardsService.CalculateRewards(user);
-        var userRewards = _fixture.TourGuideService.GetUserRewards(user);
+        User user = _fixture.TourGuideService.GetAllUsers().First();
+
+        // Act
+        await _fixture.RewardsService.CalculateRewardsAsync(user);
+
+        List<UserReward> userRewards = _fixture.TourGuideService.GetUserRewards(user);
+
+        // Assert
+        List<Attraction> attractions = await _fixture.GpsUtil.GetAttractionsAsync();
+
+        Assert.Equal(attractions.Count, userRewards.Count);
+
         _fixture.TourGuideService.Tracker.StopTracking();
-
-        Assert.Equal(_fixture.GpsUtil.GetAttractions().Count, userRewards.Count);
     }
-
 }
