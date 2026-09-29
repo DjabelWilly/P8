@@ -1,0 +1,53 @@
+name: CI - TourGuide
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+    branches:
+      - master
+      - dev
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build, test and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+
+      # 1. Restauration des dépendances
+      - name: Restore
+        run: dotnet restore TourGuide.sln
+
+      # 2. Compilation
+      - name: Build
+        run: dotnet build TourGuide.sln --configuration Release --no-restore
+
+      # 3. Tests
+      - name: Test
+        run: dotnet test TourGuideTest/TourGuideTest.csproj --configuration Release --no-build --logger "trx;LogFileName=test_results.trx"
+
+      # 4. Création du livrable
+      - name: Publish
+        run: dotnet publish TourGuide.sln -c Release -o publish --no-build
+
+      # 5. Création du ZIP
+      - name: Zip artefact
+        run: zip -r TourGuide.zip publish
+
+      # 6. Stockage de l'artefact
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TourGuide
+          path: TourGuide.zip
