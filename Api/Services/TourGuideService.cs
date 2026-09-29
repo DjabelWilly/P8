@@ -1,7 +1,6 @@
-﻿using GpsUtil.Location;
-using Microsoft.Extensions.Logging;
-using System.Diagnostics;
-using System.Globalization;
+﻿using System.Globalization;
+using GpsUtil.Location;
+using TourGuide.Dtos;
 using TourGuide.LibrairiesWrappers.Interfaces;
 using TourGuide.Services.Interfaces;
 using TourGuide.Users;
@@ -49,14 +48,18 @@ public class TourGuideService : ITourGuideService
         return user.UserRewards;
     }
 
-    public VisitedLocation GetUserLocation(User user)
+    public async Task<VisitedLocation> GetUserLocationAsync(User user)
     {
-        return user.VisitedLocations.Any() ? user.GetLastVisitedLocation() : TrackUserLocation(user);
+        return user.VisitedLocations.Any()
+            ? user.GetLastVisitedLocation()
+            : await TrackUserLocationAsync(user);
     }
 
-    public User GetUser(string userName)
+    public User? GetUser(string userName)
     {
-        return _internalUserMap.ContainsKey(userName) ? _internalUserMap[userName] : null;
+        return _internalUserMap.TryGetValue(userName, out User? value)
+            ? value
+            : null;
     }
 
     public List<User> GetAllUsers()
@@ -75,33 +78,65 @@ public class TourGuideService : ITourGuideService
     public List<Provider> GetTripDeals(User user)
     {
         int cumulativeRewardPoints = user.UserRewards.Sum(i => i.RewardPoints);
-        List<Provider> providers = _tripPricer.GetPrice(TripPricerApiKey, user.UserId,
-            user.UserPreferences.NumberOfAdults, user.UserPreferences.NumberOfChildren,
-            user.UserPreferences.TripDuration, cumulativeRewardPoints);
+
+        List<Provider> providers = _tripPricer.GetPrice(
+            TripPricerApiKey,
+            user.UserId,
+            user.UserPreferences.NumberOfAdults,
+            user.UserPreferences.NumberOfChildren,
+            user.UserPreferences.TripDuration,
+            cumulativeRewardPoints);
+
         user.TripDeals = providers;
+
         return providers;
     }
 
-    public VisitedLocation TrackUserLocation(User user)
+    public async Task<VisitedLocation> TrackUserLocationAsync(User user)
     {
-        VisitedLocation visitedLocation = _gpsUtil.GetUserLocation(user.UserId);
+        VisitedLocation visitedLocation = await _gpsUtil.GetUserLocationAsync(user.UserId);
+
         user.AddToVisitedLocations(visitedLocation);
-        _rewardsService.CalculateRewards(user);
+
+        await _rewardsService.CalculateRewardsAsync(user);
+
         return visitedLocation;
     }
 
-    public List<Attraction> GetNearByAttractions(VisitedLocation visitedLocation)
+    public async Task<List<NearbyAttractionDto>> GetNearByAttractionsAsync(VisitedLocation visitedLocation)
     {
-        List<Attraction> nearbyAttractions = new ();
-        foreach (var attraction in _gpsUtil.GetAttractions())
-        {
-            if (_rewardsService.IsWithinAttractionProximity(attraction, visitedLocation.Location))
+        var top5 = (await _gpsUtil.GetAttractionsAsync())
+            .Select(a => new
             {
-                nearbyAttractions.Add(attraction);
-            }
-        }
+                Attraction = a,
+                Distance = _rewardsService.GetDistance(
+                    a,
+                    visitedLocation.Location)
+            })
+            .OrderBy(x => x.Distance)
+            .Take(5)
+            .ToList();
 
-        return nearbyAttractions;
+        var points = top5
+            .Select(x => _rewardsService.GetRewardPoints(
+                x.Attraction,
+                visitedLocation.UserId))
+            .ToArray();
+
+        var result = top5
+            .Select((x, idx) => new NearbyAttractionDto
+            {
+                AttractionName = x.Attraction.AttractionName,
+                AttractionLatitude = x.Attraction.Latitude,
+                AttractionLongitude = x.Attraction.Longitude,
+                UserLatitude = visitedLocation.Location.Latitude,
+                UserLongitude = visitedLocation.Location.Longitude,
+                Distance = x.Distance,
+                RewardPoints = points[idx]
+            })
+            .ToList();
+
+        return result;
     }
 
     private void AddShutDownHook()

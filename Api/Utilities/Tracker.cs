@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using TourGuide.Services;
 using TourGuide.Services.Interfaces;
 using TourGuide.Users;
 
@@ -36,7 +35,8 @@ public class Tracker
 
             stopwatch.Start();
 
-            users.ForEach(u => _tourGuideService.TrackUserLocation(u));
+            var trackingTasks = users.Select(u => _tourGuideService.TrackUserLocationAsync(u));
+            await Task.WhenAll(trackingTasks);
 
             stopwatch.Stop();
 

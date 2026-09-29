@@ -13,12 +13,11 @@ public class RewardsService : IRewardsService
     private readonly int _attractionProximityRange = 200;
     private readonly IGpsUtil _gpsUtil;
     private readonly IRewardCentral _rewardsCentral;
-    private static int count = 0;
 
     public RewardsService(IGpsUtil gpsUtil, IRewardCentral rewardCentral)
     {
         _gpsUtil = gpsUtil;
-        _rewardsCentral =rewardCentral;
+        _rewardsCentral = rewardCentral;
         _proximityBuffer = _defaultProximityBuffer;
     }
 
@@ -32,12 +31,12 @@ public class RewardsService : IRewardsService
         _proximityBuffer = _defaultProximityBuffer;
     }
 
-    public void CalculateRewards(User user)
+    public async Task CalculateRewardsAsync(User user)
     {
-        count++;
         List<VisitedLocation> userLocations = user.VisitedLocations.ToList();
-        List<Attraction> attractions = _gpsUtil.GetAttractions();
+        List<Attraction> attractions = await _gpsUtil.GetAttractionsAsync();
 
+        // Permet de vérifier si une attraction possède déjà une récompense.
         var existingRewardNames = user.UserRewards.Select(r => r.Attraction.AttractionName).ToHashSet();
 
         foreach (var visitedLocation in userLocations)
@@ -46,10 +45,12 @@ public class RewardsService : IRewardsService
             {
                 if (!existingRewardNames.Contains(attraction.AttractionName))
                 {
-                    if (NearAttraction(visitedLocation, attraction))
+                    if (IsNearAttraction(visitedLocation, attraction))
                     {
-                        var reward = new UserReward(visitedLocation, attraction, GetRewardPoints(attraction, user));
+                        var reward = new UserReward(visitedLocation, attraction, GetRewardPoints(attraction, user.UserId));
                         user.AddUserReward(reward);
+
+                        // Ajoute le nom dans le HashSet afin de ne pas recalculer une récompense pour cette attraction.
                         existingRewardNames.Add(attraction.AttractionName);
                     }
                 }
@@ -59,18 +60,20 @@ public class RewardsService : IRewardsService
 
     public bool IsWithinAttractionProximity(Attraction attraction, Locations location)
     {
-        Console.WriteLine(GetDistance(attraction, location));
-        return GetDistance(attraction, location) <= _attractionProximityRange;
+        double distance = GetDistance(attraction, location);
+
+        Console.WriteLine(distance);
+
+        return distance <= _attractionProximityRange;
     }
 
-    private bool NearAttraction(VisitedLocation visitedLocation, Attraction attraction)
+    private bool IsNearAttraction(VisitedLocation visitedLocation, Attraction attraction)
     {
         return GetDistance(attraction, visitedLocation.Location) <= _proximityBuffer;
     }
-
-    private int GetRewardPoints(Attraction attraction, User user)
+    public int GetRewardPoints(Attraction attraction, Guid userId)
     {
-        return _rewardsCentral.GetAttractionRewardPoints(attraction.AttractionId, user.UserId);
+        return _rewardsCentral.GetAttractionRewardPoints(attraction.AttractionId, userId);
     }
 
     public double GetDistance(Locations loc1, Locations loc2)
